@@ -74,7 +74,7 @@ def plotdat(arr,pflag,nmax):
         mpl.rc('image', cmap='rainbow')
         for i in range(nmax):
             for j in range(nmax):
-                cols[i,j] = one_energy_vectorized(arr,i,j,nmax)
+                cols[i,j] = one_energy(arr,i,j,nmax)
         norm = plt.Normalize(cols.min(), cols.max())
     elif pflag==2: # colour the arrows according to angle
         mpl.rc('image', cmap='hsv')
@@ -163,20 +163,8 @@ def one_energy(arr,ix,iy,nmax):
     return en
 
 def one_energy_vectorized(arr, ix, iy, nmax):
-    """
-    Arguments:
-	  arr (float(nmax,nmax)) = array that contains lattice data;
-	  ix (int) = x lattice coordinate of cell;
-	  iy (int) = y lattice coordinate of cell;
-      nmax (int) = side length of square lattice.
-    Description:
-      Function that computes the energy of a single cell of the
-      lattice taking into account periodic boundaries.  Working with
-      reduced energy (U/epsilon), equivalent to setting epsilon=1 in
-      equation (1) in the project notes.
-	Returns:
-	  en (float) = reduced energy of cell.
-    """
+    # Wrong try, original one_energy is better.
+
     en = 0.0
     ixp = (ix+1)%nmax # These are the coordinates
     ixm = (ix-1)%nmax # of the neighbours
@@ -205,8 +193,8 @@ def all_energy(arr,nmax):
     """
     enall = 0.0
     for i in range(nmax):
-        for j in range(nmax):)
-            enall += one_energy_vectorized(arr,i,j,nmax)
+        for j in range(nmax):
+            enall += one_energy(arr,i,j,nmax)
             
     return enall
 #=======================================================================
@@ -251,7 +239,7 @@ def MC_step(arr,Ts,nmax):
       ratio for information.  This is the fraction of attempted changes
       that are successful.  Generally aim to keep this around 0.5 for
       efficient simulation.
-	Returns:
+	  Returns:
 	  accept/(nmax**2) (float) = acceptance ratio for current MCS.
     """
     #
@@ -261,17 +249,46 @@ def MC_step(arr,Ts,nmax):
     # with temperature.
     scale=0.1+Ts
     accept = 0
-    xran = np.random.randint(0,high=nmax, size=(nmax,nmax))
-    yran = np.random.randint(0,high=nmax, size=(nmax,nmax))
+    #xran = np.random.randint(0,high=nmax, size=(nmax,nmax))
+    #yran = np.random.randint(0,high=nmax, size=(nmax,nmax))
     aran = np.random.normal(scale=scale, size=(nmax,nmax))
+    """
+    
     for i in range(nmax):
         for j in range(nmax):
             ix = xran[i,j]
             iy = yran[i,j]
             ang = aran[i,j]
-            en0 = one_energy_vectorized(arr,ix,iy,nmax)
+            en0 = one_energy(arr,ix,iy,nmax)
             arr[ix,iy] += ang
-            en1 = one_energy_vectorized(arr,ix,iy,nmax)
+            en1 = one_energy(arr,ix,iy,nmax)
+            if en1<=en0:
+                accept += 1
+            else:
+            # Now apply the Monte Carlo test - compare
+            # exp( -(E_new - E_old) / T* ) >= rand(0,1)
+                boltz = np.exp( -(en1 - en0) / Ts )
+
+                if boltz >= np.random.uniform(0.0,1.0):
+                    accept += 1
+                else:
+                    arr[ix,iy] -= ang
+    return accept/(nmax*nmax)    
+    """
+    for ix in range(nmax):
+        for iy in range(nmax):
+            #ix = xran[i,j]
+            #iy = yran[i,j]
+            ang = aran[ix,iy]
+            en0 = one_energy(arr,ix,iy,nmax)
+            arr[ix,iy] += ang
+            en1 = one_energy(arr,ix,iy,nmax)
+            """
+            if en1<=en0 or np.exp( -(en1 - en0) / Ts ) >= np.random.uniform(0.0,1.0):
+                accept += 1
+            else:
+                arr[ix,iy] -= ang    
+            """ 
             if en1<=en0:
                 accept += 1
             else:
@@ -284,6 +301,8 @@ def MC_step(arr,Ts,nmax):
                 else:
                     arr[ix,iy] -= ang
     return accept/(nmax*nmax)
+    
+
 #=======================================================================
 def main(program, nsteps, nmax, temp, pflag):
     """
