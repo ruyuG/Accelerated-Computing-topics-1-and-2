@@ -167,6 +167,7 @@ def one_energy(arr,ix,iy,nmax):
 
 
 #=======================================================================
+@nb.jit(nopython=True)
 def all_energy(arr,nmax):
     """
     Arguments:
