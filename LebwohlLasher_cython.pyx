@@ -1,37 +1,15 @@
 # cython: language_level=3
-"""
-Basic Python Lebwohl-Lasher code.  Based on the paper 
-P.A. Lebwohl and G. Lasher, Phys. Rev. A, 6, 426-429 (1972).
-This version in 2D.
 
-Run at the command line by typing:
-
-python LebwohlLasher.py <ITERATIONS> <SIZE> <TEMPERATURE> <PLOTFLAG>
-
-where:
-  ITERATIONS = number of Monte Carlo steps, where 1MCS is when each cell
-      has attempted a change once on average (i.e. SIZE*SIZE attempts)
-  SIZE = side length of square lattice
-  TEMPERATURE = reduced temperature in range 0.0 - 2.0.
-  PLOTFLAG = 0 for no plot, 1 for energy plot and 2 for angle plot.
-  
-The initial configuration is set at random. The boundaries
-are periodic throughout the simulation.  During the
-time-stepping, an array containing two domains is used; these
-domains alternate between old data and new data.
-
-SH 16-Oct-23
-"""
+import numpy as np
+cimport numpy as cnp
 
 import sys
 import time
 import datetime
-import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-#import lebwohl_lasher_cy as cy
 from libc.math cimport cos
-cimport numpy as cnp
+
 
 #=======================================================================
 def initdat(nmax):
@@ -132,7 +110,7 @@ def savedat(arr,nsteps,Ts,runtime,ratio,energy,order,nmax):
         print("   {:05d}    {:6.4f} {:12.4f}  {:6.4f} ".format(i,ratio[i],energy[i],order[i]),file=FileOut)
     FileOut.close()
 #=======================================================================
-cpdef double one_energy(cnp.ndarray[cnp.double_t, ndim=2] arr, int ix, int iy, int nmax):
+cpdef double one_energy(double[:, :] arr, int ix, int iy, int nmax):
     cdef:
         double en = 0.0
         int ixp, ixm, iyp, iym
@@ -170,7 +148,7 @@ cpdef double one_energy(cnp.ndarray[cnp.double_t, ndim=2] arr, int ix, int iy, i
     en += 0.5*(1.0 - 3.0*np.cos(ang)**2)
     return en
 #=======================================================================
-def all_energy(arr,nmax):
+def all_energy_bak(arr,nmax):
     """
     Arguments:
 	  arr (float(nmax,nmax)) = array that contains lattice data;
@@ -187,8 +165,14 @@ def all_energy(arr,nmax):
             enall += one_energy(arr,i,j,nmax)
             
     return enall
+cpdef double all_energy(double[:, :] arr, int nmax):
+    cdef double enall = 0.0
+    cdef int i, j
+    for i in range(nmax):
+        for j in range(nmax):
+            enall += one_energy(arr,i,j,nmax)
+    return enall
 #=======================================================================
-def get_order(arr,nmax):
     """
     Arguments:
 	  arr (float(nmax,nmax)) = array that contains lattice data;
@@ -200,12 +184,13 @@ def get_order(arr,nmax):
 	Returns:
 	  max(eigenvalues(Qab)) (float) = order parameter for lattice.
     """
-    Qab = np.zeros((3,3))
-    delta = np.eye(3,3)
-    #
-    # Generate a 3D unit vector for each cell (i,j) and
-    # put it in a (3,i,j) array.
-    #
+cpdef double get_order(double[:, :] arr, int nmax):
+    cdef cnp.ndarray Qab = np.zeros((3, 3), dtype=np.double)
+    cdef cnp.ndarray delta = np.eye(3, dtype=np.double)
+    cdef cnp.ndarray lab = np.empty((3, nmax, nmax), dtype=np.double)
+    cdef int i, j, a, b
+    cdef double max_eigenvalue
+    
     lab = np.vstack((np.cos(arr),np.sin(arr),np.zeros_like(arr))).reshape(3,nmax,nmax)
     for a in range(3):
         for b in range(3):
@@ -214,9 +199,10 @@ def get_order(arr,nmax):
                     Qab[a,b] += 3*lab[a,i,j]*lab[b,i,j] - delta[a,b]
     Qab = Qab/(2*nmax*nmax)
     eigenvalues,eigenvectors = np.linalg.eig(Qab)
-    return eigenvalues.max()
+    max_eigenvalue= eigenvalues.max()
+    return max_eigenvalue
 #=======================================================================
-cpdef MC_step(cnp.ndarray[cnp.double_t, ndim=2] arr, double Ts, int nmax):
+cpdef MC_step(double[:, :] arr, double Ts, int nmax):
     cdef:
         int i, j, ix, iy, accept = 0
         double scale, ang, en0, en1, boltz
