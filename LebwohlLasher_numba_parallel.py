@@ -180,13 +180,13 @@ def all_energy(arr,nmax):
 	  enall (float) = reduced energy of lattice.
     """
     enall = 0.0
-    for i in range(nmax):
+    for i in nb.prange(nmax):
         for j in range(nmax):
             enall += one_energy(arr,i,j,nmax)
             
     return enall
 #=======================================================================
-@nb.jit(nopython=True)
+@nb.jit(nopython=True, parallel=True)
 def get_order(arr,nmax):
     """
     Arguments:
