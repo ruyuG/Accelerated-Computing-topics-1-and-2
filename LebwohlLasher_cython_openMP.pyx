@@ -148,14 +148,9 @@ cpdef double one_energy(double[:, :] arr, int ix, int iy, int nmax):
     ang = arr[ix,iy]-arr[ix,iym]
     en += 0.5*(1.0 - 3.0*cos(ang)**2)
     return en
-def compute_energy_parallel(arr, nmax):
-    en_total = 0.0
-    for ix in prange(nmax, nogil=True):
-        for iy in prange(nmax, nogil=True):
-            en_total += one_energy(arr, ix, iy, nmax)
-    return en_total
 #=======================================================================
-cpdef double all_energy(double[:, :] arr, int nmax, int num_threads=4):
+#cpdef double all_energy(double[:, :] arr, int nmax, int num_threads=4):
+cpdef double all_energy(double[:, :] arr, int nmax):
     """
     Arguments:
 	  arr (float(nmax,nmax)) = array that contains lattice data;
@@ -169,7 +164,7 @@ cpdef double all_energy(double[:, :] arr, int nmax, int num_threads=4):
     cdef double enall = 0.0
     cdef int i, j    
     #pragma omp parallel for
-    for i in prange(nmax, nogil=True, num_threads=num_threads):
+    for i in prange(nmax, nogil=True, num_threads=4):
         for j in range(nmax):
             with gil:
                 enall += one_energy(arr, i, j, nmax)
@@ -238,22 +233,25 @@ cpdef MC_step(double[:, :] arr, double Ts, int nmax):
     yran = np.random.randint(0, high=nmax, size=(nmax, nmax))
     aran = np.random.normal(scale=scale, size=(nmax, nmax))
     # Parallelize the outer loop
-    for i in prange(nmax, nogil=True, schedule='dynamic', num_threads=num_threads):
+    for i in prange(nmax, nogil=True, schedule='dynamic', num_threads=4):
         for j in range(nmax):
             ix = <int>xran[i, j]
             iy = <int>yran[i, j]
             ang = aran[i, j]
-            en0 = one_energy(arr, ix, iy, nmax)
+            with gil:
+                en0 = one_energy(arr, ix, iy, nmax)
             arr[ix, iy] += ang
-            en1 = one_energy(arr, ix, iy, nmax)
+            with gil:
+                en1 = one_energy(arr, ix, iy, nmax)
             if en1 <= en0:
                 accept += 1
             else:
-                boltz = np.exp(-(en1 - en0) / Ts)
-                if boltz >= np.random.uniform():
-                    accept += 1
-                else:
-                    arr[ix, iy] -= ang
+                with gil:
+                    boltz = np.exp(-(en1 - en0) / Ts)
+                    if boltz >= np.random.uniform():
+                        accept += 1
+                    else:
+                        arr[ix, iy] -= ang
 
     return accept / (nmax * nmax)
 #=======================================================================
