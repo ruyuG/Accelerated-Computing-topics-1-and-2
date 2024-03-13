@@ -1,5 +1,8 @@
 """
-Basic Python Lebwohl-Lasher code.  Based on the paper 
+Basic Python with numpy Lebwohl-Lasher code. 
+Switch from random to sequential sampling MC_step()
+
+Based on the paper 
 P.A. Lebwohl and G. Lasher, Phys. Rev. A, 6, 426-429 (1972).
 This version in 2D.
 
@@ -210,16 +213,17 @@ def get_order(arr, nmax):
 	Returns:
 	  max(eigenvalues(Qab)) (float) = order parameter for lattice.
     """
-    # Unit vectors
-    labx = np.cos(arr).reshape(nmax, nmax, 1)
-    laby = np.sin(arr).reshape(nmax, nmax, 1)
-    labz = np.zeros_like(arr).reshape(nmax, nmax, 1)
-    lab = np.concatenate((labx, laby, labz), axis=2) # (nmax, nmax, 3)
+    Qab = np.zeros((3,3))
+    delta = np.eye(3,3)
+    #
+    # Generate a 3D unit vector for each cell (i,j) and
+    # put it in a (3,i,j) array.
+    #
+    lab = np.stack((np.cos(arr), np.sin(arr), np.zeros_like(arr)), axis=0)
     
-    # Calculate Qab
-    Qab = np.tensordot(lab, lab, axes=([0,1],[0,1])) * 3 - np.eye(3)
-    Qab = Qab / (2.0 * nmax * nmax)
-    
+    for a in range(3):
+        for b in range(3):
+            Qab[a, b] = np.sum(3 * lab[a] * lab[b] - delta[a, b])    
     # return
     eigenvalues, _ = np.linalg.eig(Qab)
     return eigenvalues.max()
@@ -251,29 +255,6 @@ def MC_step(arr,Ts,nmax):
     #xran = np.random.randint(0,high=nmax, size=(nmax,nmax))
     #yran = np.random.randint(0,high=nmax, size=(nmax,nmax))
     aran = np.random.normal(scale=scale, size=(nmax,nmax))
-    """
-    
-    for i in range(nmax):
-        for j in range(nmax):
-            ix = xran[i,j]
-            iy = yran[i,j]
-            ang = aran[i,j]
-            en0 = one_energy(arr,ix,iy,nmax)
-            arr[ix,iy] += ang
-            en1 = one_energy(arr,ix,iy,nmax)
-            if en1<=en0:
-                accept += 1
-            else:
-            # Now apply the Monte Carlo test - compare
-            # exp( -(E_new - E_old) / T* ) >= rand(0,1)
-                boltz = np.exp( -(en1 - en0) / Ts )
-
-                if boltz >= np.random.uniform(0.0,1.0):
-                    accept += 1
-                else:
-                    arr[ix,iy] -= ang
-    return accept/(nmax*nmax)    
-    """
     for ix in range(nmax):
         for iy in range(nmax):
             #ix = xran[i,j]
@@ -300,8 +281,6 @@ def MC_step(arr,Ts,nmax):
                 else:
                     arr[ix,iy] -= ang
     return accept/(nmax*nmax)
-    
-
 #=======================================================================
 def main(program, nsteps, nmax, temp, pflag):
     """
