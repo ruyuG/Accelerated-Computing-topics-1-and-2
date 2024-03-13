@@ -224,6 +224,8 @@ def get_order(arr, nmax):
     for a in range(3):
         for b in range(3):
             Qab[a, b] = np.sum(3 * lab[a] * lab[b] - delta[a, b])    
+    Qab = Qab/(2*nmax*nmax)
+
     # return
     eigenvalues, _ = np.linalg.eig(Qab)
     return eigenvalues.max()

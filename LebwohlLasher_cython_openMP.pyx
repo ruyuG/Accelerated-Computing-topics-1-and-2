@@ -150,7 +150,7 @@ cpdef double one_energy(double[:, :] arr, int ix, int iy, int nmax):
     return en
 #=======================================================================
 #cpdef double all_energy(double[:, :] arr, int nmax, int num_threads=4):
-cpdef double all_energy(double[:, :] arr, int nmax):
+cpdef double all_energy(double[:, :] arr, int nmax,int num_threads):
     """
     Arguments:
 	  arr (float(nmax,nmax)) = array that contains lattice data;
@@ -164,7 +164,7 @@ cpdef double all_energy(double[:, :] arr, int nmax):
     cdef double enall = 0.0
     cdef int i, j    
     #pragma omp parallel for
-    for i in prange(nmax, nogil=True, num_threads=4):
+    for i in prange(nmax, nogil=True, num_threads=num_threads):
         for j in range(nmax):
             with gil:
                 enall += one_energy(arr, i, j, nmax)
@@ -201,7 +201,7 @@ cpdef double get_order(double[:, :] arr, int nmax):
     max_eigenvalue= eigenvalues.max()
     return max_eigenvalue
 #=======================================================================
-cpdef MC_step(double[:, :] arr, double Ts, int nmax):
+cpdef MC_step(double[:, :] arr, double Ts, int nmax, int num_threads):
     cdef:
         int i, j, ix, iy, accept = 0
         double scale, ang, en0, en1, boltz
@@ -229,11 +229,11 @@ cpdef MC_step(double[:, :] arr, double Ts, int nmax):
     # using lots of individual calls.  "scale" sets the width
     # of the distribution for the angle changes - increases
     # with temperature.
-    xran = np.random.randint(0, high=nmax, size=(nmax, nmax))
-    yran = np.random.randint(0, high=nmax, size=(nmax, nmax))
+    xran = np.random.randint(0, high=nmax, size=(nmax, nmax),dtype=np.int32)
+    yran = np.random.randint(0, high=nmax, size=(nmax, nmax),dtype=np.int32)
     aran = np.random.normal(scale=scale, size=(nmax, nmax))
     # Parallelize the outer loop
-    for i in prange(nmax, nogil=True, schedule='dynamic', num_threads=4):
+    for i in prange(nmax, nogil=True, schedule='dynamic', num_threads=num_threads):
         for j in range(nmax):
             ix = <int>xran[i, j]
             iy = <int>yran[i, j]
@@ -255,7 +255,7 @@ cpdef MC_step(double[:, :] arr, double Ts, int nmax):
 
     return accept / (nmax * nmax)
 #=======================================================================
-def main(program, nsteps, nmax, temp, pflag):
+def main(program, nsteps, nmax, temp, pflag, num_threads):
     """
     Arguments:
 	  program (string) = the name of the program;
@@ -277,15 +277,15 @@ def main(program, nsteps, nmax, temp, pflag):
     ratio = np.zeros(nsteps+1,dtype=np.dtype)
     order = np.zeros(nsteps+1,dtype=np.dtype)
     # Set initial values in arrays
-    energy[0] = all_energy(lattice,nmax)
+    energy[0] = all_energy(lattice,nmax,num_threads)
     ratio[0] = 0.5 # ideal value
     order[0] = get_order(lattice,nmax)
 
     # Begin doing and timing some MC steps.
     initial = time.time()
     for it in range(1,nsteps+1):
-        ratio[it] = MC_step(lattice,temp,nmax)
-        energy[it] = all_energy(lattice,nmax)
+        ratio[it] = MC_step(lattice,temp,nmax,num_threads)
+        energy[it] = all_energy(lattice,nmax,num_threads)
         order[it] = get_order(lattice,nmax)
     final = time.time()
     runtime = final-initial
@@ -300,13 +300,14 @@ def main(program, nsteps, nmax, temp, pflag):
 # main simulation function.
 #
 if __name__ == '__main__':
-    if int(len(sys.argv)) == 5:
+    if int(len(sys.argv)) == 6:
         PROGNAME = sys.argv[0]
         ITERATIONS = int(sys.argv[1])
         SIZE = int(sys.argv[2])
         TEMPERATURE = float(sys.argv[3])
         PLOTFLAG = int(sys.argv[4])
-        main(PROGNAME, ITERATIONS, SIZE, TEMPERATURE, PLOTFLAG)
+        NUM_THREADS = int(sys.argv[5])
+        main(PROGNAME, ITERATIONS, SIZE, TEMPERATURE, PLOTFLAG, NUM_THREADS)
     else:
-        print("Usage: python {} <ITERATIONS> <SIZE> <TEMPERATURE> <PLOTFLAG>".format(sys.argv[0]))
+        print("Usage: python {} <ITERATIONS> <SIZE> <TEMPERATURE> <PLOTFLAG> <NUM_THREADS>".format(sys.argv[0]))
 #=======================================================================
