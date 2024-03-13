@@ -206,8 +206,10 @@ cpdef MC_step(double[:, :] arr, double Ts, int nmax):
     cdef:
         int i, j, ix, iy, accept = 0
         double scale, ang, en0, en1, boltz
-        int[:,:] xran, yran, 
-        double[:,:] aran
+        int[:, :] xran
+        int[:, :] yran
+        double[:, :] aran
+
 
     scale = 0.1 + Ts
     """
@@ -230,8 +232,9 @@ cpdef MC_step(double[:, :] arr, double Ts, int nmax):
     # using lots of individual calls.  "scale" sets the width
     # of the distribution for the angle changes - increases
     # with temperature.
-    xran = np.random.randint(0, high=nmax, size=(nmax, nmax))
-    yran = np.random.randint(0, high=nmax, size=(nmax, nmax))
+    xran = np.random.randint(0, high=nmax, size=(nmax, nmax), dtype=np.int32)
+    yran = np.random.randint(0, high=nmax, size=(nmax, nmax), dtype=np.int32)
+
     aran = np.random.normal(scale=scale, size=(nmax, nmax))
 
     for i in range(nmax):
